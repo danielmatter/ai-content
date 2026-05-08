@@ -16,7 +16,7 @@ fi
 export SQLITE_PATH=${SQLITE_PATH:-studio.sqlite}
 
 # Run database migration src/lib/db/migrate.ts
-npx -y tsx src/lib/db/migrate.ts
+# npx -y tsx src/lib/db/migrate.ts
 
 # Start the application
 exec "$@"
