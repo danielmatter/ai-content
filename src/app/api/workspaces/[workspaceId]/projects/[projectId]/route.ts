@@ -2,21 +2,25 @@ import "@/lib/db/migrate";
 
 import { NextResponse } from "next/server";
 
-import { apiError, getCurrentUserId, notFound, projectSchema, readJson, requireWorkspace, unauthorized } from "@/lib/api";
+import { apiError, filterOwnedAssetIds, getCurrentUserId, notFound, projectSchema, readJson, requireProject, requireWorkspace, unauthorized } from "@/lib/api";
 import { db, now, parseJsonArray } from "@/lib/db/client";
 
 type Context = { params: Promise<{ workspaceId: string; projectId: string }> };
 
 function getProject(workspaceId: string, projectId: string) {
-  return db
-    .prepare("SELECT * FROM projects WHERE workspace_id = ? AND id = ?")
-    .get(workspaceId, projectId) as Record<string, unknown> | undefined;
+  return requireProject(workspaceId, projectId) ?? undefined;
 }
 
-function getProjectAssetIds(projectId: string) {
+function getProjectAssetIds(workspaceId: string, projectId: string) {
   return db
-    .prepare("SELECT asset_id FROM project_assets WHERE project_id = ? ORDER BY created_at ASC")
-    .all(projectId)
+    .prepare(
+      `SELECT project_assets.asset_id
+       FROM project_assets
+       INNER JOIN assets ON assets.id = project_assets.asset_id
+       WHERE project_assets.project_id = ? AND assets.workspace_id = ?
+       ORDER BY project_assets.created_at ASC`,
+    )
+    .all(projectId, workspaceId)
     .map((row) => String((row as { asset_id: string }).asset_id));
 }
 
@@ -53,7 +57,7 @@ export async function GET(_request: Request, context: Context) {
     return notFound("Project not found");
   }
 
-  const assetIds = getProjectAssetIds(projectId);
+  const assetIds = getProjectAssetIds(workspaceId, projectId);
   const scenes = db
     .prepare("SELECT * FROM project_scenes WHERE project_id = ? ORDER BY position ASC, created_at ASC")
     .all(projectId)
@@ -95,6 +99,11 @@ export async function PATCH(request: Request, context: Context) {
       ).run(nextProject);
 
       if (input.assetIds) {
+        const ownedAssetIds = filterOwnedAssetIds(workspaceId, input.assetIds);
+        if (ownedAssetIds.size !== input.assetIds.length) {
+          throw new Error("One or more assets are unavailable in this workspace");
+        }
+
         db.prepare("DELETE FROM project_assets WHERE project_id = ?").run(projectId);
         const insert = db.prepare("INSERT OR IGNORE INTO project_assets (project_id, asset_id, created_at) VALUES (?, ?, ?)");
         for (const assetId of input.assetIds) {
@@ -107,9 +116,13 @@ export async function PATCH(request: Request, context: Context) {
 
     const project = getProject(workspaceId, projectId);
     return NextResponse.json({
-      project: { ...project, assetIds: getProjectAssetIds(projectId), timelineState: parseTimelineState(project?.timeline_state) },
+      project: { ...project, assetIds: getProjectAssetIds(workspaceId, projectId), timelineState: parseTimelineState(project?.timeline_state) },
     });
   } catch (error) {
+    if (error instanceof Error && error.message === "One or more assets are unavailable in this workspace") {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+
     return apiError(error);
   }
 }
@@ -123,6 +136,10 @@ export async function DELETE(_request: Request, context: Context) {
 
   if (!requireWorkspace(workspaceId, userId)) {
     return notFound("Workspace not found");
+  }
+
+  if (!getProject(workspaceId, projectId)) {
+    return notFound("Project not found");
   }
 
   db.prepare("DELETE FROM projects WHERE workspace_id = ? AND id = ?").run(workspaceId, projectId);

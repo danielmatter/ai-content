@@ -3,8 +3,7 @@ import "@/lib/db/migrate";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { apiError, getCurrentUserId, notFound, readJson, requireWorkspace, unauthorized } from "@/lib/api";
-import { db } from "@/lib/db/client";
+import { apiError, getCurrentUserId, notFound, readJson, requireProject, requireScene, requireWorkspace, unauthorized } from "@/lib/api";
 import { createFrameImageJob, kickImageJobWorker } from "@/lib/image-jobs";
 
 const inputSchema = z.object({
@@ -28,10 +27,11 @@ export async function POST(request: Request, context: Context) {
     const userId = await getCurrentUserId();
     if (!userId) return unauthorized();
     if (!requireWorkspace(workspaceId, userId)) return notFound("Workspace not found");
+    if (!requireProject(workspaceId, projectId)) return notFound("Project not found");
 
     const { description, frameType, referenceImageUrls, model, settings } = await readJson(request, inputSchema);
     if (sceneId !== "new") {
-      const scene = db.prepare("SELECT id FROM project_scenes WHERE project_id = ? AND id = ?").get(projectId, sceneId);
+      const scene = requireScene(workspaceId, projectId, sceneId);
       if (!scene) return notFound("Scene not found");
     }
 

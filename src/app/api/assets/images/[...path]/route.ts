@@ -2,10 +2,18 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { NextResponse } from "next/server";
 
+import { db } from "@/lib/db/client";
+import { getCurrentUserId } from "@/lib/api";
+
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ path: string[] }> }
 ) {
+  const userId = await getCurrentUserId();
+  if (!userId) {
+    return new NextResponse("Unauthorized", { status: 401 });
+  }
+
   const { path: pathParts } = await params;
   
   // Validate path to prevent directory traversal
@@ -26,6 +34,20 @@ export async function GET(
   }
 
   const filePath = path.join(process.cwd(), "storage", "uploads", sanitizedPath);
+  const assetPath = `/api/assets/images/${pathParts.join("/")}`;
+  const ownedImage = db
+    .prepare(
+      `SELECT images.id
+       FROM images
+       INNER JOIN workspaces ON workspaces.id = images.workspace_id
+       WHERE workspaces.user_id = ? AND (images.source_url = ? OR images.thumbnail_url = ?)
+       LIMIT 1`,
+    )
+    .get(userId, assetPath, assetPath);
+
+  if (!ownedImage) {
+    return new NextResponse("Not Found", { status: 404 });
+  }
 
   try {
     const buffer = await readFile(filePath);
@@ -41,7 +63,7 @@ export async function GET(
     return new NextResponse(buffer, {
       headers: {
         "Content-Type": contentType,
-        "Cache-Control": "public, max-age=31536000, immutable",
+        "Cache-Control": "private, no-store",
       },
     });
   } catch (error) {

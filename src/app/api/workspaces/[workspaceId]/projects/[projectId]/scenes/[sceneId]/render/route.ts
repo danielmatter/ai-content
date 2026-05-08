@@ -4,15 +4,11 @@ import { readFile } from "node:fs/promises";
 import { z } from "zod";
 
 import { db } from "@/lib/db/client";
-import { getCurrentUserId } from "@/lib/api";
+import { getCurrentUserId, requireProject, requireScene, requireWorkspace } from "@/lib/api";
 import { nanoid } from "nanoid";
 import { generationModelConfigs, getGenerationModel } from "@/lib/generation";
 import { parseJsonArray } from "@/lib/db/client";
 import { callLLMVideoAPI } from "@/lib/llm-api";
-
-function serializeScene(scene: Record<string, unknown>) {
-  return { ...scene, assetIds: parseJsonArray(scene.asset_ids) };
-}
 
 function getMimeType(sourceUrl: string, contentType?: string | null) {
   if (contentType?.startsWith("image/")) {
@@ -158,38 +154,21 @@ export async function POST(
   const { workspaceId, projectId, sceneId } = await params;
 
   // Validate workspace access
-  const workspace = db.prepare("SELECT * FROM workspaces WHERE id = ? AND user_id = ?").get(workspaceId, userId);
+  const workspace = requireWorkspace(workspaceId, userId);
   if (!workspace) return new NextResponse("Workspace not found", { status: 404 });
 
-  const project = db.prepare("SELECT * FROM projects WHERE id = ? AND workspace_id = ?").get(projectId, workspaceId) as ProjectRow | undefined;
+  const project = requireProject(workspaceId, projectId) as ProjectRow | null;
   if (!project) return new NextResponse("Project not found", { status: 404 });
 
-  const scene = db.prepare("SELECT * FROM project_scenes WHERE id = ? AND project_id = ?").get(sceneId, projectId) as SceneRow | undefined;
+  const scene = requireScene(workspaceId, projectId, sceneId) as SceneRow | null;
   if (!scene) return new NextResponse("Scene not found", { status: 404 });
   const input: z.infer<typeof inputSchema> = await request.json().then((value) => inputSchema.parse(value)).catch(() => ({ referenceImageUrls: [], settings: {} }));
-
-  const projectAssetIds = db
-    .prepare("SELECT asset_id FROM project_assets WHERE project_id = ? ORDER BY created_at ASC")
-    .all(projectId)
-    .map((row) => String((row as { asset_id: string }).asset_id));
-
-  const projectAssets = projectAssetIds.length
-    ? db
-      .prepare(`SELECT * FROM assets WHERE id IN (${projectAssetIds.map(() => "?").join(",")})`)
-      .all(...projectAssetIds)
-      .map((asset) => serializeAsset(asset as Record<string, unknown>))
-    : [];
-
-  const projectScenes = db
-    .prepare("SELECT * FROM project_scenes WHERE project_id = ? ORDER BY position ASC, created_at ASC")
-    .all(projectId)
-    .map((item) => serializeScene(item as Record<string, unknown>));
 
   const sceneAssetIds = parseJsonArray(scene.asset_ids);
   const sceneAssets = sceneAssetIds.length
     ? db
-      .prepare(`SELECT * FROM assets WHERE id IN (${sceneAssetIds.map(() => "?").join(",")})`)
-      .all(...sceneAssetIds)
+      .prepare(`SELECT * FROM assets WHERE workspace_id = ? AND id IN (${sceneAssetIds.map(() => "?").join(",")})`)
+      .all(workspaceId, ...sceneAssetIds)
       .map((asset) => serializeAsset(asset as Record<string, unknown>))
     : [];
 

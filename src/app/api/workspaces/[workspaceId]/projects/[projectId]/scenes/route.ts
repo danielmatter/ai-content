@@ -3,7 +3,7 @@ import "@/lib/db/migrate";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { apiError, getCurrentUserId, notFound, projectSceneSchema, readJson, requireWorkspace, unauthorized } from "@/lib/api";
+import { apiError, filterOwnedAssetIds, getCurrentUserId, notFound, projectSceneSchema, readJson, requireProject, requireWorkspace, unauthorized } from "@/lib/api";
 import { db, makeId, now, parseJsonArray, toJsonArray } from "@/lib/db/client";
 
 type Context = { params: Promise<{ workspaceId: string; projectId: string }> };
@@ -32,7 +32,7 @@ export async function GET(_request: Request, context: Context) {
     return notFound("Workspace not found");
   }
 
-  const project = db.prepare("SELECT id FROM projects WHERE workspace_id = ? AND id = ?").get(workspaceId, projectId);
+  const project = requireProject(workspaceId, projectId);
   if (!project) {
     return notFound("Project not found");
   }
@@ -57,12 +57,17 @@ export async function POST(request: Request, context: Context) {
       return notFound("Workspace not found");
     }
 
-    const project = db.prepare("SELECT id FROM projects WHERE workspace_id = ? AND id = ?").get(workspaceId, projectId);
+    const project = requireProject(workspaceId, projectId);
     if (!project) {
       return notFound("Project not found");
     }
 
     const input = await readJson(request, projectSceneSchema);
+    const ownedAssetIds = filterOwnedAssetIds(workspaceId, input.assetIds);
+    if (ownedAssetIds.size !== input.assetIds.length) {
+      return NextResponse.json({ error: "One or more assets are unavailable in this workspace" }, { status: 400 });
+    }
+
     const position =
       input.position ??
       Number(
@@ -122,7 +127,7 @@ export async function PUT(request: Request, context: Context) {
       return notFound("Workspace not found");
     }
 
-    const project = db.prepare("SELECT id FROM projects WHERE workspace_id = ? AND id = ?").get(workspaceId, projectId);
+    const project = requireProject(workspaceId, projectId);
     if (!project) {
       return notFound("Project not found");
     }

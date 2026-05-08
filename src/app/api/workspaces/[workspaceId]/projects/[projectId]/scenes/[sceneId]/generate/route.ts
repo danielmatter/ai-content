@@ -2,7 +2,7 @@ import "@/lib/db/migrate";
 
 import { NextResponse } from "next/server";
 
-import { apiError, getCurrentUserId, notFound, readJson, requireWorkspace, unauthorized } from "@/lib/api";
+import { apiError, getCurrentUserId, notFound, readJson, requireProject, requireScene, requireWorkspace, unauthorized } from "@/lib/api";
 import { db } from "@/lib/db/client";
 import { generateFormDraft, steeringSchema } from "@/lib/form-generation";
 
@@ -31,12 +31,12 @@ export async function POST(request: Request, context: Context) {
       return notFound("Workspace not found");
     }
 
-    const project = db.prepare("SELECT * FROM projects WHERE workspace_id = ? AND id = ?").get(workspaceId, projectId) as ProjectRow | undefined;
+    const project = requireProject(workspaceId, projectId) as ProjectRow | null;
     if (!project) {
       return notFound("Project not found");
     }
 
-    const scene = db.prepare("SELECT * FROM project_scenes WHERE project_id = ? AND id = ?").get(projectId, sceneId) as SceneRow | undefined;
+    const scene = requireScene(workspaceId, projectId, sceneId) as SceneRow | null;
     if (!scene) {
       return notFound("Scene not found");
     }
@@ -54,10 +54,10 @@ export async function POST(request: Request, context: Context) {
           .prepare(
             `SELECT assets.type, assets.title, assets.description FROM assets
              INNER JOIN project_assets ON project_assets.asset_id = assets.id
-             WHERE project_assets.project_id = ?
+             WHERE project_assets.project_id = ? AND assets.workspace_id = ?
              ORDER BY assets.type ASC, assets.title ASC`,
           )
-          .all(projectId),
+          .all(projectId, workspaceId),
         scenes: db
           .prepare("SELECT title, description FROM project_scenes WHERE project_id = ? AND id != ? ORDER BY position ASC LIMIT 50")
           .all(projectId, sceneId),

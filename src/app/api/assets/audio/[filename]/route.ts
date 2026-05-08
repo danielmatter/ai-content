@@ -5,6 +5,9 @@ import { Readable } from "node:stream";
 
 import { NextResponse } from "next/server";
 
+import { getCurrentUserId } from "@/lib/api";
+import { db } from "@/lib/db/client";
+
 function getContentType(filename: string) {
   const extension = path.extname(filename).toLowerCase();
 
@@ -17,6 +20,11 @@ function getContentType(filename: string) {
 }
 
 export async function GET(request: Request, { params }: { params: Promise<{ filename: string }> }) {
+  const userId = await getCurrentUserId();
+  if (!userId) {
+    return new NextResponse("Unauthorized", { status: 401 });
+  }
+
   const { filename } = await params;
 
   if (!filename || filename !== path.basename(filename) || filename.includes("..")) {
@@ -24,6 +32,20 @@ export async function GET(request: Request, { params }: { params: Promise<{ file
   }
 
   const filePath = path.join(process.cwd(), "storage", "uploads", "audio", filename);
+  const assetUrl = `/api/assets/audio/${filename}`;
+  const ownedAsset = db
+    .prepare(
+      `SELECT assets.id
+       FROM assets
+       INNER JOIN workspaces ON workspaces.id = assets.workspace_id
+       WHERE workspaces.user_id = ? AND assets.audio_url = ?
+       LIMIT 1`,
+    )
+    .get(userId, assetUrl);
+
+  if (!ownedAsset) {
+    return new NextResponse("Not Found", { status: 404 });
+  }
 
   try {
     const fileStat = await stat(filePath);
@@ -31,7 +53,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ file
     const headers: Record<string, string> = {
       "Content-Type": getContentType(filename),
       "Accept-Ranges": "bytes",
-      "Cache-Control": "public, max-age=31536000, immutable",
+      "Cache-Control": "private, no-store",
     };
 
     if (rangeHeader) {

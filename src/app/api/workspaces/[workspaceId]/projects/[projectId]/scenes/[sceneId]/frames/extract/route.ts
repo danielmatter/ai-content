@@ -7,7 +7,7 @@ import { promisify } from "node:util";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { apiError, getCurrentUserId, notFound, readJson, requireWorkspace, unauthorized } from "@/lib/api";
+import { apiError, getCurrentUserId, notFound, readJson, requireProject, requireScene, requireWorkspace, unauthorized } from "@/lib/api";
 import { db, makeId, now, parseJsonArray } from "@/lib/db/client";
 import { ensureUploadDirs, getImageUrl, getThumbnailUrl, insertImage, serializeImage } from "@/lib/image-library";
 
@@ -50,35 +50,35 @@ function videoPathFromUrl(videoUrl: string) {
   return path.join(process.cwd(), "storage", "uploads", "videos", filename);
 }
 
-function getLatestRender(projectId: string, sceneId: string) {
+function getLatestRender(workspaceId: string, projectId: string, sceneId: string) {
   return db
     .prepare(
       `SELECT * FROM render_jobs
-       WHERE project_id = ? AND scene_id = ? AND kind = 'video'
+       WHERE workspace_id = ? AND project_id = ? AND scene_id = ? AND kind = 'video'
          AND video_url IS NOT NULL AND status IN ('completed', 'downloaded')
        ORDER BY updated_at DESC, created_at DESC
        LIMIT 1`,
     )
-    .get(projectId, sceneId) as RenderJobRow | undefined;
+    .get(workspaceId, projectId, sceneId) as RenderJobRow | undefined;
 }
 
-function getRender(projectId: string, sceneId: string, renderJobId?: string) {
+function getRender(workspaceId: string, projectId: string, sceneId: string, renderJobId?: string) {
   if (!renderJobId) {
-    return getLatestRender(projectId, sceneId);
+    return getLatestRender(workspaceId, projectId, sceneId);
   }
 
   return db
     .prepare(
       `SELECT * FROM render_jobs
-       WHERE id = ? AND project_id = ? AND scene_id = ? AND kind = 'video'
+       WHERE id = ? AND workspace_id = ? AND project_id = ? AND scene_id = ? AND kind = 'video'
          AND video_url IS NOT NULL AND status IN ('completed', 'downloaded')
        LIMIT 1`,
     )
-    .get(renderJobId, projectId, sceneId) as RenderJobRow | undefined;
+    .get(renderJobId, workspaceId, projectId, sceneId) as RenderJobRow | undefined;
 }
 
-function getScene(projectId: string, sceneId: string) {
-  return db.prepare("SELECT * FROM project_scenes WHERE project_id = ? AND id = ?").get(projectId, sceneId) as SceneRow | undefined;
+function getScene(workspaceId: string, projectId: string, sceneId: string) {
+  return requireScene(workspaceId, projectId, sceneId) as SceneRow | null;
 }
 
 function serializeScene(scene: SceneRow | undefined) {
@@ -101,13 +101,17 @@ export async function POST(request: Request, context: Context) {
       return notFound("Workspace not found");
     }
 
-    const sourceScene = getScene(projectId, sceneId);
+    if (!requireProject(workspaceId, projectId)) {
+      return notFound("Project not found");
+    }
+
+    const sourceScene = getScene(workspaceId, projectId, sceneId);
     if (!sourceScene) {
       return notFound("Scene not found");
     }
 
     const input = await readJson(request, extractFrameSchema);
-    const render = getRender(projectId, sceneId, input.renderJobId);
+    const render = getRender(workspaceId, projectId, sceneId, input.renderJobId);
     if (!render?.video_url) {
       return NextResponse.json({ error: "The selected render is not available for this scene." }, { status: 400 });
     }
@@ -149,7 +153,7 @@ export async function POST(request: Request, context: Context) {
 
     let targetScene: SceneRow | undefined;
     if (input.targetSceneId && input.targetFrameType) {
-      targetScene = getScene(projectId, input.targetSceneId);
+      targetScene = getScene(workspaceId, projectId, input.targetSceneId) ?? undefined;
       if (!targetScene) {
         return notFound("Target scene not found");
       }
@@ -162,7 +166,7 @@ export async function POST(request: Request, context: Context) {
         projectId,
         input.targetSceneId,
       );
-      targetScene = getScene(projectId, input.targetSceneId);
+      targetScene = getScene(workspaceId, projectId, input.targetSceneId) ?? undefined;
     }
 
     return NextResponse.json({

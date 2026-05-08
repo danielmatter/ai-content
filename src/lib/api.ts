@@ -113,6 +113,59 @@ export function requireWorkspace(workspaceId: string, userId: string) {
   return workspace as Record<string, unknown>;
 }
 
+export function requireProject(workspaceId: string, projectId: string) {
+  const project = db
+    .prepare("SELECT * FROM projects WHERE workspace_id = ? AND id = ?")
+    .get(workspaceId, projectId);
+
+  if (!project) {
+    return null;
+  }
+
+  return project as Record<string, unknown>;
+}
+
+export function requireScene(workspaceId: string, projectId: string, sceneId: string) {
+  const scene = db
+    .prepare(
+      `SELECT project_scenes.*
+       FROM project_scenes
+       INNER JOIN projects ON projects.id = project_scenes.project_id
+       WHERE projects.workspace_id = ? AND project_scenes.project_id = ? AND project_scenes.id = ?`,
+    )
+    .get(workspaceId, projectId, sceneId);
+
+  if (!scene) {
+    return null;
+  }
+
+  return scene as Record<string, unknown>;
+}
+
+export function requireAsset(workspaceId: string, assetId: string) {
+  const asset = db
+    .prepare("SELECT * FROM assets WHERE workspace_id = ? AND id = ?")
+    .get(workspaceId, assetId);
+
+  if (!asset) {
+    return null;
+  }
+
+  return asset as Record<string, unknown>;
+}
+
+export function filterOwnedAssetIds(workspaceId: string, assetIds: string[]) {
+  if (assetIds.length === 0) {
+    return new Set<string>();
+  }
+
+  const rows = db
+    .prepare(`SELECT id FROM assets WHERE workspace_id = ? AND id IN (${assetIds.map(() => "?").join(",")})`)
+    .all(workspaceId, ...assetIds) as { id: string }[];
+
+  return new Set(rows.map((row) => String(row.id)));
+}
+
 export function slugify(value: string) {
   const slug = value
     .toLowerCase()

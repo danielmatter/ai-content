@@ -2,7 +2,7 @@ import "@/lib/db/migrate";
 
 import { NextResponse } from "next/server";
 
-import { apiError, getCurrentUserId, notFound, projectSchema, readJson, requireWorkspace, unauthorized } from "@/lib/api";
+import { apiError, filterOwnedAssetIds, getCurrentUserId, notFound, projectSchema, readJson, requireWorkspace, unauthorized } from "@/lib/api";
 import { db, makeId, now } from "@/lib/db/client";
 
 type Context = { params: Promise<{ workspaceId: string }> };
@@ -63,6 +63,11 @@ export async function POST(request: Request, context: Context) {
     }
 
     const input = await readJson(request, projectSchema);
+    const ownedAssetIds = filterOwnedAssetIds(workspaceId, input.assetIds);
+    if (ownedAssetIds.size !== input.assetIds.length) {
+      return NextResponse.json({ error: "One or more assets are unavailable in this workspace" }, { status: 400 });
+    }
+
     const createdAt = now();
     const project = {
       id: makeId("prj"),

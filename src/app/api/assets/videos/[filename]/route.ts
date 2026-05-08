@@ -5,6 +5,9 @@ import { Readable } from "node:stream";
 
 import { NextResponse } from "next/server";
 
+import { getCurrentUserId } from "@/lib/api";
+import { db } from "@/lib/db/client";
+
 function getContentType(filename: string) {
     const extension = path.extname(filename).toLowerCase();
 
@@ -18,6 +21,11 @@ export async function GET(
     _request: Request,
     { params }: { params: Promise<{ filename: string }> }
 ) {
+    const userId = await getCurrentUserId();
+    if (!userId) {
+        return new NextResponse("Unauthorized", { status: 401 });
+    }
+
     const { filename } = await params;
 
     if (!filename || filename !== path.basename(filename) || filename.includes("..")) {
@@ -25,6 +33,20 @@ export async function GET(
     }
 
     const filePath = path.join(process.cwd(), "storage", "uploads", "videos", filename);
+    const assetUrl = `/api/assets/videos/${filename}`;
+    const ownedVideo = db
+        .prepare(
+            `SELECT render_jobs.id
+             FROM render_jobs
+             INNER JOIN workspaces ON workspaces.id = render_jobs.workspace_id
+             WHERE workspaces.user_id = ? AND render_jobs.video_url = ?
+             LIMIT 1`,
+        )
+        .get(userId, assetUrl);
+
+    if (!ownedVideo) {
+        return new NextResponse("Not Found", { status: 404 });
+    }
 
     try {
         const fileStat = await stat(filePath);
@@ -32,7 +54,7 @@ export async function GET(
         const headers: Record<string, string> = {
             "Content-Type": getContentType(filename),
             "Accept-Ranges": "bytes",
-            "Cache-Control": "public, max-age=31536000, immutable",
+            "Cache-Control": "private, no-store",
         };
 
         if (rangeHeader) {

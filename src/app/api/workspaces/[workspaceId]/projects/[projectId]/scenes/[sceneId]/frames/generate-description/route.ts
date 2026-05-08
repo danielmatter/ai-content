@@ -2,7 +2,7 @@ import "@/lib/db/migrate";
 
 import { NextResponse } from "next/server";
 
-import { apiError, getCurrentUserId, notFound, readJson, requireWorkspace, unauthorized } from "@/lib/api";
+import { apiError, getCurrentUserId, notFound, readJson, requireProject, requireScene, requireWorkspace, unauthorized } from "@/lib/api";
 import { db, parseJsonArray } from "@/lib/db/client";
 import { getGenerationModel, writeGenerationLog } from "@/lib/generation";
 import { callLLMTextAPI } from "@/lib/llm-api";
@@ -52,7 +52,7 @@ export async function POST(request: Request, context: Context) {
       return notFound("Workspace not found");
     }
 
-    const project = db.prepare("SELECT * FROM projects WHERE workspace_id = ? AND id = ?").get(workspaceId, projectId) as ProjectRow | undefined;
+    const project = requireProject(workspaceId, projectId) as ProjectRow | null;
     if (!project) {
       return notFound("Project not found");
     }
@@ -61,7 +61,7 @@ export async function POST(request: Request, context: Context) {
 
     let sceneData: SceneData | null = null;
     if (sceneId && sceneId !== "new") {
-      sceneData = db.prepare("SELECT * FROM project_scenes WHERE project_id = ? AND id = ?").get(projectId, sceneId) as SceneData | undefined ?? null;
+      sceneData = requireScene(workspaceId, projectId, sceneId) as SceneData | null;
     } else {
       sceneData = sceneInput ?? null;
     }
@@ -77,19 +77,19 @@ export async function POST(request: Request, context: Context) {
       assets = db
         .prepare(
           `SELECT assets.type, assets.title, assets.description, assets.text FROM assets
-           WHERE assets.id IN (${sceneAssetIds.map(() => "?").join(",")})
+            WHERE assets.workspace_id = ? AND assets.id IN (${sceneAssetIds.map(() => "?").join(",")})
            ORDER BY assets.type ASC, assets.title ASC`,
         )
-        .all(...sceneAssetIds) as AssetContext[];
+          .all(workspaceId, ...sceneAssetIds) as AssetContext[];
     } else {
       assets = db
         .prepare(
           `SELECT assets.type, assets.title, assets.description, assets.text FROM assets
            INNER JOIN project_assets ON project_assets.asset_id = assets.id
-           WHERE project_assets.project_id = ?
+            WHERE project_assets.project_id = ? AND assets.workspace_id = ?
            ORDER BY assets.type ASC, assets.title ASC`,
         )
-        .all(projectId) as AssetContext[];
+          .all(projectId, workspaceId) as AssetContext[];
     }
 
     const model = getGenerationModel("text", "openai/gpt-4o-mini");

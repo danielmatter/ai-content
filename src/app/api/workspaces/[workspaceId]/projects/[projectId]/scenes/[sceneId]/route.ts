@@ -2,15 +2,13 @@ import "@/lib/db/migrate";
 
 import { NextResponse } from "next/server";
 
-import { apiError, getCurrentUserId, notFound, projectSceneSchema, readJson, requireWorkspace, unauthorized } from "@/lib/api";
+import { apiError, filterOwnedAssetIds, getCurrentUserId, notFound, projectSceneSchema, readJson, requireProject, requireScene, requireWorkspace, unauthorized } from "@/lib/api";
 import { db, now, parseJsonArray, toJsonArray } from "@/lib/db/client";
 
 type Context = { params: Promise<{ workspaceId: string; projectId: string; sceneId: string }> };
 
-function getScene(projectId: string, sceneId: string) {
-  return db
-    .prepare("SELECT * FROM project_scenes WHERE project_id = ? AND id = ?")
-    .get(projectId, sceneId) as Record<string, unknown> | undefined;
+function getScene(workspaceId: string, projectId: string, sceneId: string) {
+  return requireScene(workspaceId, projectId, sceneId) ?? undefined;
 }
 
 function serializeScene(scene: Record<string, unknown>) {
@@ -33,7 +31,11 @@ export async function GET(_request: Request, context: Context) {
     return notFound("Workspace not found");
   }
 
-  const scene = getScene(projectId, sceneId);
+  if (!requireProject(workspaceId, projectId)) {
+    return notFound("Project not found");
+  }
+
+  const scene = getScene(workspaceId, projectId, sceneId);
   return scene ? NextResponse.json({ scene: serializeScene(scene) }) : notFound("Scene not found");
 }
 
@@ -49,12 +51,23 @@ export async function PATCH(request: Request, context: Context) {
       return notFound("Workspace not found");
     }
 
-    const current = getScene(projectId, sceneId);
+    if (!requireProject(workspaceId, projectId)) {
+      return notFound("Project not found");
+    }
+
+    const current = getScene(workspaceId, projectId, sceneId);
     if (!current) {
       return notFound("Scene not found");
     }
 
     const input = await readJson(request, projectSceneSchema.partial());
+    if (input.assetIds) {
+      const ownedAssetIds = filterOwnedAssetIds(workspaceId, input.assetIds);
+      if (ownedAssetIds.size !== input.assetIds.length) {
+        return NextResponse.json({ error: "One or more assets are unavailable in this workspace" }, { status: 400 });
+      }
+    }
+
     const updatedAt = now();
     const nextScene = {
       id: sceneId,
@@ -93,7 +106,7 @@ export async function PATCH(request: Request, context: Context) {
       }
     })();
 
-    return NextResponse.json({ scene: serializeScene(getScene(projectId, sceneId)!) });
+    return NextResponse.json({ scene: serializeScene(getScene(workspaceId, projectId, sceneId)!) });
   } catch (error) {
     return apiError(error);
   }
@@ -108,6 +121,14 @@ export async function DELETE(_request: Request, context: Context) {
 
   if (!requireWorkspace(workspaceId, userId)) {
     return notFound("Workspace not found");
+  }
+
+  if (!requireProject(workspaceId, projectId)) {
+    return notFound("Project not found");
+  }
+
+  if (!getScene(workspaceId, projectId, sceneId)) {
+    return notFound("Scene not found");
   }
 
   db.prepare("DELETE FROM project_scenes WHERE project_id = ? AND id = ?").run(projectId, sceneId);

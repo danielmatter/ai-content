@@ -15,8 +15,8 @@ fi
 # Set default SQLITE_PATH if not provided
 export SQLITE_PATH=${SQLITE_PATH:-studio.sqlite}
 
-# Run database migrations if needed
-# npm run db:migrate (Assuming there is a migrate script, if not, drizzle-kit can handle it)
+# Run database migration src/lib/db/migrate.ts
+npx -y ts-node src/lib/db/migrate.ts
 
 # Start the application
 exec "$@"
