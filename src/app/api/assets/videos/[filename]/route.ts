@@ -89,7 +89,7 @@ export async function GET(
 
             return new NextResponse(Readable.toWeb(stream) as BodyInit, {
                 status: 206,
-            headers: {
+                headers: {
                     ...headers,
                     "Content-Length": String(contentLength),
                     "Content-Range": `bytes ${start}-${end}/${fileStat.size}`,

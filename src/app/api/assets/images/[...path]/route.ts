@@ -15,7 +15,7 @@ export async function GET(
   }
 
   const { path: pathParts } = await params;
-  
+
   // Validate path to prevent directory traversal
   // Expecting path like ["images", "img_xxx.png"] or ["thumbnails", "img_xxx_thumb.png"]
   if (pathParts.length < 2) {
@@ -51,7 +51,7 @@ export async function GET(
 
   try {
     const buffer = await readFile(filePath);
-    
+
     // Determine content type based on extension
     const ext = path.extname(filePath).toLowerCase();
     let contentType = "application/octet-stream";

@@ -85,7 +85,7 @@ export async function POST(request: Request, context: Context) {
          VALUES (@id, @workspace_id, @title, @logline, @timeline_state, @created_at, @updated_at)`,
       ).run(project);
       const projectAssetIds = [...input.assetIds];
-      
+
       if (input.assets && Array.isArray(input.assets)) {
         const insertAsset = db.prepare(
           `INSERT INTO assets (id, workspace_id, type, title, description, text, image_urls, audio_url, audio_mime_type, created_at, updated_at)

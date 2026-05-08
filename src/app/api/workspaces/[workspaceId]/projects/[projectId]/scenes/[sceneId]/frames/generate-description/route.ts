@@ -80,7 +80,7 @@ export async function POST(request: Request, context: Context) {
             WHERE assets.workspace_id = ? AND assets.id IN (${sceneAssetIds.map(() => "?").join(",")})
            ORDER BY assets.type ASC, assets.title ASC`,
         )
-          .all(workspaceId, ...sceneAssetIds) as AssetContext[];
+        .all(workspaceId, ...sceneAssetIds) as AssetContext[];
     } else {
       assets = db
         .prepare(
@@ -89,11 +89,11 @@ export async function POST(request: Request, context: Context) {
             WHERE project_assets.project_id = ? AND assets.workspace_id = ?
            ORDER BY assets.type ASC, assets.title ASC`,
         )
-          .all(projectId, workspaceId) as AssetContext[];
+        .all(projectId, workspaceId) as AssetContext[];
     }
 
     const model = getGenerationModel("text", "openai/gpt-4o-mini");
-    
+
     const systemPrompt = `You are a visual director for an AI film studio.
 Your task is to generate a detailed textual description for the ${frameType} frame of a scene.
 This description will be used by an image generation model.
@@ -132,7 +132,7 @@ Generate the description for the ${frameType} frame:`;
     });
 
     const description = json.choices?.[0]?.message?.content?.trim() ?? "";
-    
+
     await writeGenerationLog({
       target: `scene-${sceneId || 'new'}-${frameType}-frame-description`,
       request: { systemPrompt, userPrompt },

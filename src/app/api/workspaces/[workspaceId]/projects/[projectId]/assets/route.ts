@@ -35,7 +35,7 @@ export async function GET(_request: Request, context: Context) {
        WHERE project_assets.project_id = ? AND assets.workspace_id = ?
        ORDER BY assets.type ASC, assets.title ASC`,
     )
-     .all(projectId, workspaceId);
+    .all(projectId, workspaceId);
 
   return NextResponse.json({ assets });
 }
