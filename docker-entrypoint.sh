@@ -13,7 +13,7 @@ if [ -z "$BETTER_AUTH_SECRET" ]; then
 fi
 
 # Set default SQLITE_PATH if not provided
-export SQLITE_PATH=${SQLITE_PATH:-studio.sqlite}
+export SQLITE_PATH=${SQLITE_PATH:-storage/studio.sqlite}
 
 # Run database migration src/lib/db/migrate.ts
 # npx -y tsx src/lib/db/migrate.ts

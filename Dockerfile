@@ -13,7 +13,8 @@ COPY . .
 
 # Build the Next.js application
 # Disable telemetry during build
-ENV NEXT_TELEMETRY_DISABLED 1
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV SQLITE_PATH=storage/studio.sqlite
 RUN npm run build
 
 # Stage 2: Production
@@ -21,8 +22,9 @@ FROM node:20-alpine AS runner
 
 WORKDIR /app
 
-ENV NODE_ENV production
-ENV NEXT_TELEMETRY_DISABLED 1
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV SQLITE_PATH=storage/studio.sqlite
 
 # Install runtime dependencies for native modules
 RUN apk add --no-cache libc6-compat
@@ -38,8 +40,6 @@ COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/docker-entrypoint.sh ./docker-entrypoint.sh
 
-# Ensure storage and sqlite files are writable by the nextjs user
-RUN mkdir -p storage && chown -R nextjs:nodejs /app
 RUN apk add --no-cache imagemagick libjpeg-turbo libpng libwebp
 
 RUN ln -s "$(which convert)" /usr/local/bin/magick
@@ -48,8 +48,8 @@ USER nextjs
 
 EXPOSE 3000
 
-ENV PORT 3000
-ENV HOSTNAME "0.0.0.0"
+ENV PORT=3000
+ENV HOSTNAME=0.0.0.0
 
 ENTRYPOINT ["/app/docker-entrypoint.sh"]
 CMD ["npm", "start"]
