@@ -135,7 +135,7 @@ export async function callLLMImageAPI(input: LLMImageAPI) {
       quality: input.quality,
       image_config: {
         aspect_ratio: input.aspectRatio,
-        quality: input.quality,
+        // quality: input.quality,
         image_size: input.imageSize ?? "1K",
       },
     }),
