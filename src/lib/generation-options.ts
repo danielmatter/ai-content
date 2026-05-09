@@ -33,7 +33,7 @@ export const generationModelConfigs = {
       resolutions: ["720p"] as string[],
       aspectRatios: ["16:9"] as string[],
       durations: [4] as number[],
-      generateAudio: [false] as boolean[],
+      generateAudio: [false, true] as boolean[],
       frameTypes: ["first_frame", "last_frame"] as string[],
     },
     {
