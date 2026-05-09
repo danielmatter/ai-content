@@ -77,12 +77,12 @@ async function getReferenceImages(projectId: string, sceneId: string, selectedUr
   const assets = sceneAssetIds.length
     ? db.prepare(`SELECT image_urls FROM assets WHERE id IN (${sceneAssetIds.map(() => "?").join(",")})`).all(...sceneAssetIds)
     : db
-        .prepare(
-          `SELECT assets.image_urls FROM assets
+      .prepare(
+        `SELECT assets.image_urls FROM assets
            INNER JOIN project_assets ON project_assets.asset_id = assets.id
            WHERE project_assets.project_id = ?`,
-        )
-        .all(projectId);
+      )
+      .all(projectId);
 
   const urls = [
     ...selectedUrls,
@@ -109,16 +109,17 @@ async function createImageBuffer(job: ImageJobRow) {
     const referenceImages = (await Promise.all(parseJsonArray(job.reference_image_urls).map(imageUrlToDataUrl))).filter(Boolean) as string[];
     const sourceBuffer = process.env.OPENROUTER_API_KEY
       ? await callLLMImageAPI({
-          model: job.generation_model ?? undefined,
-          prompt,
-          aspectRatio: imageModelConfig.aspectRatios.includes(options.aspectRatio) ? options.aspectRatio : "1:1",
-          imageSize,
-          quality,
-          referenceImages,
-        })
+        model: job.generation_model ?? undefined,
+        prompt,
+        aspectRatio: options.aspectRatio,
+        imageSize,
+        quality,
+        referenceImages,
+        modalities: imageModelConfig.modalities,
+      })
       : await fetch(`https://picsum.photos/seed/${encodeURIComponent(asset.title || "asset")}/512/512`).then(async (response) =>
-          Buffer.from(await response.arrayBuffer()),
-        );
+        Buffer.from(await response.arrayBuffer()),
+      );
 
     const width = 512;
     const imageHeight = 512;
@@ -160,16 +161,17 @@ Ensure visual consistency with the provided asset references if any.`.trim();
   const referenceImages = await getReferenceImages(job.project_id, job.scene_id, parseJsonArray(job.reference_image_urls));
   const sourceBuffer = process.env.OPENROUTER_API_KEY
     ? await callLLMImageAPI({
-        model: job.generation_model ?? undefined,
-        prompt,
-        aspectRatio: imageModelConfig.aspectRatios.includes(options.aspectRatio) ? options.aspectRatio : "16:9",
-        imageSize,
-        quality,
-        referenceImages,
-      })
+      model: job.generation_model ?? undefined,
+      prompt,
+      aspectRatio: options.aspectRatio,
+      imageSize,
+      quality,
+      referenceImages,
+      modalities: ["image"],
+    })
     : await fetch(`https://picsum.photos/seed/${encodeURIComponent(sceneTitle + frameType)}/1024/576`).then(async (response) =>
-        Buffer.from(await response.arrayBuffer()),
-      );
+      Buffer.from(await response.arrayBuffer()),
+    );
   const imageBuffer = await sharp(sourceBuffer).resize(1024, 576, { fit: "cover" }).png().toBuffer();
 
   return {
