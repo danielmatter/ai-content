@@ -14,13 +14,13 @@ type TextContent = {
 
 type LLMMessage =
   | {
-      role: "system" | "user" | "assistant";
-      content: string;
-    }
+    role: "system" | "user" | "assistant";
+    content: string;
+  }
   | {
-      role: "user";
-      content: Array<TextContent | ImageContent>;
-    };
+    role: "user";
+    content: Array<TextContent | ImageContent>;
+  };
 
 export type LLMTextAPI = {
   model?: string;
@@ -34,6 +34,7 @@ export type LLMImageAPI = {
   aspectRatio: string;
   imageSize?: string;
   quality?: string;
+  modalities: string[];
   referenceImages?: string[];
 };
 
@@ -119,9 +120,9 @@ export async function callLLMImageAPI(input: LLMImageAPI) {
   const model = getGenerationModel("image", input.model);
   const content: LLMMessage["content"] = input.referenceImages?.length
     ? [
-        { type: "text", text: input.prompt },
-        ...input.referenceImages.map((url) => ({ type: "image_url" as const, image_url: { url } })),
-      ]
+      { type: "text", text: input.prompt },
+      ...input.referenceImages.map((url) => ({ type: "image_url" as const, image_url: { url } })),
+    ]
     : input.prompt;
 
   const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
@@ -130,7 +131,7 @@ export async function callLLMImageAPI(input: LLMImageAPI) {
     body: JSON.stringify({
       model,
       messages: [{ role: "user", content }],
-      modalities: ["image", "text"],
+      modalities: input.modalities, //["image", "text"],
       quality: input.quality,
       image_config: {
         aspect_ratio: input.aspectRatio,

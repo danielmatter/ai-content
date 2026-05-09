@@ -13,6 +13,7 @@ export const generationModelConfigs = {
       aspectRatios: ["1:1", "16:9", "9:16", "4:3", "3:4"] as string[],
       sizes: ["1K"] as string[],
       qualities: ["low", "medium", "high"] as string[],
+      modalities: ["image", "text"] as string[],
     },
     {
       id: "recraft/recraft-v4",
@@ -20,6 +21,7 @@ export const generationModelConfigs = {
       aspectRatios: ["1:1", "16:9", "9:16", "4:3", "3:4"] as string[],
       sizes: ["1K"] as string[],
       qualities: ["low", "medium", "high"] as string[],
+      modalities: ["image"] as string[],
     },
     {
       id: "black-forest-labs/flux.2-klein-4b",
@@ -27,6 +29,7 @@ export const generationModelConfigs = {
       aspectRatios: ["1:1", "16:9", "9:16", "4:3", "3:4"] as string[],
       sizes: ["1K"] as string[],
       qualities: ["low", "medium", "high"] as string[],
+      modalities: ["image"] as string[],
     },
     {
       id: "bytedance-seed/seedream-4.5",
@@ -34,6 +37,7 @@ export const generationModelConfigs = {
       aspectRatios: ["1:1", "16:9", "9:16", "4:3", "3:4"] as string[],
       sizes: ["1K"] as string[],
       qualities: ["low", "medium", "high"] as string[],
+      modalities: ["image"] as string[],
     }
   ],
   video: [
