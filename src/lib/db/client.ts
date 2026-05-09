@@ -1,4 +1,14 @@
+import { mkdirSync } from "node:fs";
+import path from "node:path";
+
 import Database from "better-sqlite3";
+
+const sqlitePath = process.env.SQLITE_PATH ?? "studio.sqlite";
+const sqliteDirectory = path.dirname(sqlitePath);
+
+if (sqliteDirectory !== ".") {
+  mkdirSync(sqliteDirectory, { recursive: true });
+}
 
 const globalForDb = globalThis as unknown as {
   studioDb?: Database.Database;
@@ -6,7 +16,7 @@ const globalForDb = globalThis as unknown as {
 
 export const db =
   globalForDb.studioDb ??
-  new Database(process.env.SQLITE_PATH ?? "studio.sqlite", {
+  new Database(sqlitePath, {
     fileMustExist: false,
   });
 
