@@ -40,12 +40,11 @@ COPY --from=builder /app/docker-entrypoint.sh ./docker-entrypoint.sh
 
 # Ensure storage and sqlite files are writable by the nextjs user
 RUN mkdir -p storage && chown -R nextjs:nodejs /app
-RUN apk add --no-cache imagemagick \
-    libjpeg62-turbo \
-    libpng16-16 \
-    libwebp7 \
-    file \
-    && rm -rf /var/lib/apt/lists/*
+RUN apk add --no-cache imagemagick
+RUN apk add --no-cache libjpeg62-turbo
+RUN apk add --no-cache libpng16-16
+RUN apk add --no-cache libwebp7
+
 RUN ln -s "$(which convert)" /usr/local/bin/magick
 
 USER nextjs
